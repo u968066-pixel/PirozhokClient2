@@ -1,0 +1,44 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
+    id 'com.gradleup.shadow' version '8.3.5'
+}
+
+group = 'ru.pirozhok'
+version = '1.0.0'
+
+repositories { mavenCentral() }
+
+dependencies {
+    implementation 'com.google.code.gson:gson:2.11.0'
+}
+
+javafx {
+    version = '21.0.5'
+    modules = ['javafx.controls']
+}
+
+application {
+    mainClass = 'ru.pirozhok.launcher.Main'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+shadowJar {
+    archiveFileName = 'pirozhok-launcher.jar'
+    mergeServiceFiles()
+    exclude 'module-info.class', 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+    manifest { attributes 'Main-Class': 'ru.pirozhok.launcher.Main' }
+}
+
+// Папка-вход для jpackage: fat-jar лаунчера + мод из libs/
+tasks.register('jpackageInput', Copy) {
+    dependsOn shadowJar
+    from(shadowJar.archiveFile)
+    from('libs') { include '*.jar' }
+    into layout.buildDirectory.dir('jpackage-input')
+}
