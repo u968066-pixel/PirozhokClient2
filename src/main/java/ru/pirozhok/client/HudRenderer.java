@@ -188,4 +188,86 @@ public final class HudRenderer {
 
     private List<Line> coordLines(MinecraftClient mc) {
         return List.of(
-                Line.pair("X
+                Line.pair("X", String.format(Locale.ROOT, "%.1f", mc.player.getX())),
+                Line.pair("Y", String.format(Locale.ROOT, "%.1f", mc.player.getY())),
+                Line.pair("Z", String.format(Locale.ROOT, "%.1f", mc.player.getZ())));
+    }
+
+    private List<Line> keybindLines(MinecraftClient mc) {
+        List<Line> out = new ArrayList<>();
+        out.add(Line.pair("Menu", PirozhokClient.menuKey.getBoundKeyLocalizedText().getString()));
+        out.add(keyLine("Sprint", mc.options.sprintKey));
+        out.add(keyLine("Sneak", mc.options.sneakKey));
+        out.add(keyLine("Jump", mc.options.jumpKey));
+        return out;
+    }
+
+    private Line keyLine(String name, KeyBinding kb) {
+        boolean down = kb.isPressed();
+        return new Line(name, down ? Theme.accentSecond() : Line.DEFAULT,
+                kb.getBoundKeyLocalizedText().getString(), down ? Theme.accentSecond() : Theme.TEXT_DIM);
+    }
+
+    private List<Line> activeModuleLines(MinecraftClient mc) {
+        List<ClientModule> on = new ArrayList<>();
+        for (ClientModule m : modules.all()) if (m.isEnabled() && !m.id.equals("active_modules")) on.add(m);
+        on.sort(Comparator.comparingInt((ClientModule m) -> mc.textRenderer.getWidth(m.name)).reversed());
+        List<Line> out = new ArrayList<>();
+        for (int i = 0; i < on.size(); i++) {
+            float t = on.size() <= 1 ? 0f : (float) i / (on.size() - 1);
+            out.add(Line.text(on.get(i).name, Theme.accentAt(t)));
+        }
+        return out;
+    }
+
+    private List<Line> effectLines(MinecraftClient mc) {
+        List<Line> out = new ArrayList<>();
+        for (StatusEffectInstance e : mc.player.getStatusEffects()) {
+            var type = e.getEffectType().value();
+            String name = type.getName().getString() + (e.getAmplifier() > 0 ? " " + (e.getAmplifier() + 1) : "");
+            String time = e.isInfinite() ? "∞" : formatTime(e.getDuration() / 20);
+            out.add(new Line(name, 0xFF000000 | type.getColor(), time, Line.DEFAULT));
+        }
+        return out;
+    }
+
+    private List<Line> potionLines(MinecraftClient mc) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        PlayerInventory inv = mc.player.getInventory();
+        for (int i = 0; i < inv.size(); i++) {
+            ItemStack s = inv.getStack(i);
+            if (s.isOf(Items.POTION) || s.isOf(Items.SPLASH_POTION) || s.isOf(Items.LINGERING_POTION)) {
+                counts.merge(s.getName().getString(), s.getCount(), Integer::sum);
+            }
+        }
+        List<Line> out = new ArrayList<>();
+        counts.forEach((name, n) -> out.add(new Line(name, Line.DEFAULT, "x" + n, Line.DEFAULT)));
+        return out;
+    }
+
+    private List<Line> armorLines(MinecraftClient mc) {
+        List<Line> out = new ArrayList<>();
+        for (EquipmentSlot slot : new EquipmentSlot[]{EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET}) {
+            ItemStack s = mc.player.getEquippedStack(slot);
+            if (s.isEmpty()) continue;
+            int pct = s.getMaxDamage() > 0 ? (s.getMaxDamage() - s.getDamage()) * 100 / s.getMaxDamage() : 100;
+            int color = Theme.lerp(0xFFEF4444, 0xFF34D399, pct / 100f);
+            out.add(new Line(s.getName().getString(), Line.DEFAULT, pct + "%", color));
+        }
+        return out;
+    }
+
+    private int countArrows(MinecraftClient mc) {
+        int n = 0;
+        PlayerInventory inv = mc.player.getInventory();
+        for (int i = 0; i < inv.size(); i++) {
+            ItemStack s = inv.getStack(i);
+            if (s.isOf(Items.ARROW) || s.isOf(Items.SPECTRAL_ARROW) || s.isOf(Items.TIPPED_ARROW)) n += s.getCount();
+        }
+        return n;
+    }
+
+    private static String formatTime(int seconds) {
+        return String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60);
+    }
+                            }
