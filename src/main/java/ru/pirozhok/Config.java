@@ -1,4 +1,4 @@
-package ru.pirozhok.launcher;
+package ru.pirozhok;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -17,6 +17,8 @@ public final class Config {
     public String nick = "Player";
     public int ramGb = 4;
     public boolean closeOnLaunch = false;
+    public boolean highPriority = true;
+    public boolean boost = true;
 
     public static Config load() {
         Config c = new Config();
@@ -27,6 +29,8 @@ public final class Config {
                 c.nick = p.getProperty("nick", c.nick);
                 c.ramGb = Integer.parseInt(p.getProperty("ramGb", "4"));
                 c.closeOnLaunch = Boolean.parseBoolean(p.getProperty("closeOnLaunch", "false"));
+                c.highPriority = Boolean.parseBoolean(p.getProperty("highPriority", "true"));
+                c.boost = Boolean.parseBoolean(p.getProperty("boost", "true"));
             }
         } catch (Exception ignored) { }
         return c;
@@ -39,6 +43,8 @@ public final class Config {
             p.setProperty("nick", nick);
             p.setProperty("ramGb", String.valueOf(ramGb));
             p.setProperty("closeOnLaunch", String.valueOf(closeOnLaunch));
+            p.setProperty("highPriority", String.valueOf(highPriority));
+            p.setProperty("boost", String.valueOf(boost));
             try (var out = Files.newBufferedWriter(FILE)) { p.store(out, "Pirozhok Launcher"); }
         } catch (IOException ignored) { }
     }
