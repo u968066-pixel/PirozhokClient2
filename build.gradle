@@ -8,20 +8,10 @@ plugins {
 group = 'ru.pirozhok'
 version = '1.0.0'
 
-// ВОТ ЗДЕСЬ МЫ УКАЗЫВАЕМ, ГДЕ СКАЧИВАТЬ MINECRAFT
-repositories { 
-    mavenCentral() 
-    maven { url = 'https://maven.fabricmc.net/' } 
-    maven { url = 'https://repo.maven.apache.org/maven2/' } 
-}
+repositories { mavenCentral() }
 
 dependencies {
     implementation 'com.google.code.gson:gson:2.11.0'
-    
-    // Теперь Gradle знает, куда идти за этими библиотеками
-    implementation 'net.minecraft:minecraft:1.21.4'
-    implementation 'net.fabricmc:fabric-loader:0.16.10'
-    implementation 'net.fabricmc.fabric-api:fabric-api:0.119.2+1.21.4'
 }
 
 javafx {
@@ -36,7 +26,9 @@ application {
 sourceSets {
     main {
         java {
+            // Игнорируем файлы HUD, чтобы они не мешали сборке лаунчера
             srcDirs = ['src/main/java']
+            exclude '**/Theme.java', '**/HudRenderer.java', '**/HudDragManager.java', '**/PirozhokScreen.java', '**/PirozhokClient.java'
         }
         resources {
             srcDirs = ['src/main/resources']
@@ -50,7 +42,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 shadowJar {
-    archiveFileName = 'PirozhokClient.jar'
+    archiveFileName = 'PirozhokLauncher.jar'
     mergeServiceFiles()
     exclude 'module-info.class', 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
     manifest { attributes 'Main-Class': 'ru.pirozhok.Main' }
