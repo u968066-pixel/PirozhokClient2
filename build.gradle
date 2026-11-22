@@ -44,4 +44,11 @@ shadowJar {
     archiveFileName = 'PirozhokLauncher.jar'
     mergeServiceFiles()
     exclude 'module-info.class', 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
-    manifest { attributes 'Main-Class': 'ru.pirozh
+}
+
+tasks.register('jpackageInput', Copy) {
+    dependsOn shadowJar
+    from(shadowJar.archiveFile)
+    from('libs') { include '*.jar' }
+    into layout.buildDirectory.dir('jpackage-input')
+}
