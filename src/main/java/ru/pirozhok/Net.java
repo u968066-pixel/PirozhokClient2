@@ -1,4 +1,4 @@
-package ru.pirozhok.launcher;
+package ru.pirozhok;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
