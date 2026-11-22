@@ -1,8 +1,70 @@
-- name: Build EXE
-  shell: pwsh
-  run: |
-    jpackage --type app-image --dest dist `
-      --input build/jpackage-input `
-      --main-jar PirozhokLauncher.jar `  <-- ВОТ ЗДЕСЬ
-      --main-class ru.pirozhok.Main `
-      --name PirozhokLauncher --app-version 1.0.0
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Build fat jar
+        run: gradle jpackageInput --no-daemon --stacktrace
+
+      - name: jpackage - portable app
+        shell: pwsh
+        run: |
+          jpackage --type app-image --dest dist/portable `
+            --input build/jpackage-input `
+            --main-jar PirozhokLauncher.jar `
+            --main-class ru.pirozhok.Main `
+            --name PirozhokLauncher --app-version 1.0.0 --vendor Pirozhok `
+            --add-modules "java.base,java.desktop,java.logging,java.net.http,java.xml,java.naming,java.management,jdk.unsupported,jdk.crypto.ec" `
+            --java-options "-Dfile.encoding=UTF-8"
+          Compress-Archive -Path dist/portable/PirozhokLauncher -DestinationPath dist/PirozhokLauncher-portable.zip
+
+      - name: Make sure WiX is available
+        shell: pwsh
+        run: |
+          $c = Get-ChildItem "${env:ProgramFiles(x86)}\WiX*" -Recurse -Filter candle.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $c) {
+            choco install wixtoolset --no-progress -y
+            $c = Get-ChildItem "${env:ProgramFiles(x86)}\WiX*" -Recurse -Filter candle.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          }
+          Add-Content $env:GITHUB_PATH $c.DirectoryName
+
+      - name: jpackage - installer EXE
+        shell: pwsh
+        run: |
+          jpackage --type exe --dest dist/installer `
+            --input build/jpackage-input `
+            --main-jar PirozhokLauncher.jar `
+            --main-class ru.pirozhok.Main `
+            --name PirozhokLauncher --app-version 1.0.0 --vendor Pirozhok `
+            --add-modules "java.base,java.desktop,java.logging,java.net.http,java.xml,java.naming,java.management,jdk.unsupported,jdk.crypto.ec" `
+            --java-options "-Dfile.encoding=UTF-8" `
+            --win-menu --win-shortcut --win-dir-chooser --win-per-user-install `
+            --win-upgrade-uuid 7f0e5b0a-3c1d-4f6b-9a52-2d6c8e1b4a90
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PirozhokLauncher-installer
+          path: dist/installer/*.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PirozhokLauncher-portable
+          path: dist/PirozhokLauncher-portable.zip
