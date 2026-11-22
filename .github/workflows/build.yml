@@ -3,94 +3,35 @@ name: Build Windows EXE
 on:
   push:
     branches: [main, master]
-    tags: ['v*']
-  pull_request:
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-
-      - name: Check mod file
-        shell: pwsh
-        run: |
-          if (-not (Test-Path libs/PirojokVisual.jar)) {
-            Write-Output "::warning::libs/PirojokVisual.jar не найден - лаунчер соберется без мода"
-          }
-
+      
       - name: Build fat jar
-        run: gradle jpackageInput --no-daemon --stacktrace
-
-      - name: jpackage - portable app (EXE, без установки)
+        run: gradle jpackageInput --no-daemon
+      
+      - name: Build EXE
         shell: pwsh
         run: |
-          $common = @(
-            '--input', 'build/jpackage-input',
-            '--main-jar', 'pirozhok-launcher.jar',
-            '--main-class', 'ru.pirozhok.launcher.Main',
-            '--name', 'PirozhokLauncher',
-            '--app-version', '1.0.0',
-            '--vendor', 'Pirozhok',
-            '--description', 'Pirozhok Launcher',
-            '--add-modules', 'java.base,java.desktop,java.logging,java.net.http,java.xml,java.naming,java.management,jdk.unsupported,jdk.crypto.ec',
-            '--java-options', '-Dfile.encoding=UTF-8',
-            '--java-options', '-Xmx512m'
-          )
-          jpackage --type app-image --dest dist/portable @common
-          Compress-Archive -Path dist/portable/PirozhokLauncher -DestinationPath dist/PirozhokLauncher-portable.zip
-
-      - name: Make sure WiX is available
-        shell: pwsh
-        run: |
-          $c = Get-ChildItem "${env:ProgramFiles(x86)}\WiX*" -Recurse -Filter candle.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $c) {
-            choco install wixtoolset --no-progress -y
-            $c = Get-ChildItem "${env:ProgramFiles(x86)}\WiX*" -Recurse -Filter candle.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-          }
-          Add-Content $env:GITHUB_PATH $c.DirectoryName
-
-      - name: jpackage - installer EXE
-        shell: pwsh
-        run: |
-          jpackage --type exe --dest dist/installer `
+          jpackage --type app-image --dest dist `
             --input build/jpackage-input `
-            --main-jar pirozhok-launcher.jar `
-            --main-class ru.pirozhok.launcher.Main `
-            --name PirozhokLauncher --app-version 1.0.0 --vendor Pirozhok `
-            --description "Pirozhok Launcher" `
-            --add-modules "java.base,java.desktop,java.logging,java.net.http,java.xml,java.naming,java.management,jdk.unsupported,jdk.crypto.ec" `
-            --java-options "-Dfile.encoding=UTF-8" --java-options "-Xmx512m" `
-            --win-menu --win-shortcut --win-dir-chooser --win-per-user-install `
-            --win-upgrade-uuid 7f0e5b0a-3c1d-4f6b-9a52-2d6c8e1b4a90
+            --main-jar PirozhokLauncher.jar `
+            --main-class ru.pirozhok.Main `
+            --name PirozhokLauncher --app-version 1.0.0
+          Compress-Archive -Path dist/PirozhokLauncher -DestinationPath dist/PirozhokLauncher.zip
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PirozhokLauncher-installer
-          path: dist/installer/*.exe
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: PirozhokLauncher-portable
-          path: dist/PirozhokLauncher-portable.zip
-
-      - name: Attach to GitHub Release (по тегу v*)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/installer/*.exe
-            dist/PirozhokLauncher-portable.zip
+          name: PirozhokLauncher-Portable
+          path: dist/PirozhokLauncher.zip
