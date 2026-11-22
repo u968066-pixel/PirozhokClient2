@@ -1,54 +1,27 @@
 plugins {
-    id 'java'
-    id 'application'
-    id 'org.openjfx.javafxplugin' version '0.1.0'
-    id 'com.gradleup.shadow' version '8.3.5'
+    id 'fabric-loom' version '1.9-SNAPSHOT'
 }
 
-group = 'ru.pirozhok'
 version = '1.0.0'
+group = 'ru.pirozhok'
 
 repositories { mavenCentral() }
 
 dependencies {
-    implementation 'com.google.code.gson:gson:2.11.0'
+    minecraft "com.mojang:minecraft:1.21.4"
+    mappings "net.fabricmc:yarn:1.21.4+build.8:v2"
+    modImplementation "net.fabricmc:fabric-loader:0.16.10"
+    modImplementation "net.fabricmc:fabric-api:fabric-api:0.119.2+1.21.4"
 }
 
-javafx {
-    version = '21.0.5'
-    modules = ['javafx.controls']
-}
-
-application {
-    mainClass = 'ru.pirozhok.Main' // Обрати внимание: без .launcher, потому что Main лежит в pirozhok
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-    options.release = 21
-}
-
-// Указываем, где лежат исходники (и папка client, и файлы лаунчера)
+// Указываем, что исходники лежат в папке client
 sourceSets {
     main {
-        java {
-            srcDirs = ['src/main/java']
-        }
-        resources {
-            srcDirs = ['src/main/resources']
-        }
+        java.srcDirs = ['src/main/java/ru/pirozhok/client']
+        resources.srcDirs = ['src/main/resources']
     }
 }
 
-shadowJar {
-    archiveFileName = 'PirozhokLauncher.jar'
-    mergeServiceFiles()
-    exclude 'module-info.class', 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
-    manifest { attributes 'Main-Class': 'ru.pirozhok.Main' }
-}
-
-tasks.register('jpackageInput', Copy) {
-    dependsOn shadowJar
-    from(shadowJar.archiveFile)
-    into layout.buildDirectory.dir('jpackage-input')
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
 }
