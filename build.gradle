@@ -20,7 +20,7 @@ javafx {
 }
 
 application {
-    mainClass = 'ru.pirozhok.launcher.Main'
+    mainClass = 'ru.pirozhok.Main' // Обрати внимание: без .launcher, потому что Main лежит в pirozhok
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -28,16 +28,27 @@ tasks.withType(JavaCompile).configureEach {
     options.release = 21
 }
 
+// Указываем, где лежат исходники (и папка client, и файлы лаунчера)
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src/main/java']
+        }
+        resources {
+            srcDirs = ['src/main/resources']
+        }
+    }
+}
+
 shadowJar {
-    archiveFileName = 'pirozhok-launcher.jar'
+    archiveFileName = 'PirozhokLauncher.jar'
     mergeServiceFiles()
     exclude 'module-info.class', 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
-    manifest { attributes 'Main-Class': 'ru.pirozhok.launcher.Main' }
+    manifest { attributes 'Main-Class': 'ru.pirozhok.Main' }
 }
 
 tasks.register('jpackageInput', Copy) {
     dependsOn shadowJar
     from(shadowJar.archiveFile)
-    from('libs') { include '*.jar' }
     into layout.buildDirectory.dir('jpackage-input')
 }
