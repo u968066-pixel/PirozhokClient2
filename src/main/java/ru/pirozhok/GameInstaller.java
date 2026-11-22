@@ -1,4 +1,4 @@
-package ru.pirozhok.launcher;
+package ru.pirozhok;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -20,7 +20,6 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-/** Скачивает Java 21, Minecraft 1.21.4 (Mojang), Fabric, ставит мод и запускает игру. */
 public final class GameInstaller {
 
     public interface Progress { void update(String status, double fraction); }
@@ -49,18 +48,15 @@ public final class GameInstaller {
 
     private void report(String s, double f) { progress.update(s, f); }
 
-    /* ====================================================== main flow */
-
     public void run() throws Exception {
         Files.createDirectories(Config.MODS);
         Files.createDirectories(NATIVES);
 
-        String java = ensureJava();                                   // 0.01 – 0.22
+        String java = ensureJava();
         report("Получение данных Mojang и Fabric…", 0.24);
         JsonObject vanilla = fetchVanilla();
         JsonObject fabric = fetchFabric();
 
-        // --- библиотеки + клиент
         Map<Path, Item> items = new LinkedHashMap<>();
         Set<Path> classpath = new LinkedHashSet<>();
 
@@ -90,7 +86,6 @@ public final class GameInstaller {
 
         downloadAll(new ArrayList<>(items.values()), "Скачивание библиотек", 0.25, 0.45);
 
-        // --- ассеты
         JsonObject assetIndex = vanilla.getAsJsonObject("assetIndex");
         String assetId = assetIndex.get("id").getAsString();
         Path indexFile = ASSETS.resolve("indexes").resolve(assetId + ".json");
@@ -106,18 +101,18 @@ public final class GameInstaller {
         }
         downloadAll(assets, "Скачивание ресурсов", 0.45, 0.92);
 
-        // --- мод
         report("Установка модов…", 0.93);
         boolean modOk = installMod();
         installFabricApi();
+        if (cfg.boost) {
+            installBoostMods();
+            Optimizer.applyVideoSettings(Config.GAME, false);
+        }
 
-        // --- запуск
         report(modOk ? "Запуск Minecraft…" : "Мод PirojokVisual.jar не найден в libs — запуск без него…", 0.97);
         launch(java, vanilla, fabric, classpath, assetId);
         report("Игра запущена!", 1.0);
     }
-
-    /* ====================================================== Java 21 */
 
     private String ensureJava() throws Exception {
         Path own = RUNTIME.resolve("jre21").resolve("bin").resolve("javaw.exe");
@@ -189,8 +184,6 @@ public final class GameInstaller {
         }
     }
 
-    /* ====================================================== Mojang / Fabric */
-
     private JsonObject fetchVanilla() throws Exception {
         Path f = VERSIONS.resolve(Config.MC).resolve(Config.MC + ".json");
         if (!Files.exists(f)) {
@@ -233,8 +226,6 @@ public final class GameInstaller {
         return g + "/" + p[1] + "/" + p[2] + "/" + p[1] + "-" + p[2] + cls + ".jar";
     }
 
-    /* ====================================================== downloads */
-
     private void downloadAll(List<Item> all, String label, double from, double to) throws Exception {
         List<Item> todo = new ArrayList<>();
         for (Item i : all) {
@@ -269,8 +260,6 @@ public final class GameInstaller {
 
     private static String mb(long b) { return String.format(Locale.US, "%.1f МБ", b / 1048576.0); }
 
-    /* ====================================================== mods */
-
     private boolean installMod() {
         Path src = findMod();
         if (src == null) return false;
@@ -283,7 +272,6 @@ public final class GameInstaller {
         }
     }
 
-    /** Ищем мод рядом с лаунчером (jpackage кладёт libs/*.jar в папку app) и в ./libs. */
     private static Path findMod() {
         List<Path> dirs = new ArrayList<>();
         try {
@@ -301,13 +289,25 @@ public final class GameInstaller {
         return null;
     }
 
-    /** Fabric API нужен большинству модов — качаем с Modrinth (не критично, если не вышло). */
-    private void installFabricApi() {
+    private static final String[][] BOOST_MODS = {
+            {"sodium", "sodium"}, {"lithium", "lithium"}, {"ferrite-core", "ferritecore"},
+            {"entityculling", "entityculling"}, {"immediatelyfast", "immediatelyfast"}, {"modernfix", "modernfix"}};
+
+    private void installFabricApi() { installModrinth("fabric-api", "fabric-api"); }
+
+    private void installBoostMods() {
+        for (int i = 0; i < BOOST_MODS.length; i++) {
+            report("FPS-буст: установка " + BOOST_MODS[i][0] + "…", 0.935 + 0.03 * i / BOOST_MODS.length);
+            installModrinth(BOOST_MODS[i][0], BOOST_MODS[i][1]);
+        }
+    }
+
+    private void installModrinth(String slug, String filePrefix) {
         try (Stream<Path> s = Files.list(Config.MODS)) {
-            if (s.anyMatch(p -> p.getFileName().toString().toLowerCase().startsWith("fabric-api"))) return;
+            if (s.anyMatch(p -> p.getFileName().toString().toLowerCase().startsWith(filePrefix))) return;
         } catch (IOException ignored) { }
         try {
-            String q = "https://api.modrinth.com/v2/project/fabric-api/version"
+            String q = "https://api.modrinth.com/v2/project/" + slug + "/version"
                     + "?game_versions=%5B%22" + Config.MC + "%22%5D&loaders=%5B%22fabric%22%5D";
             JsonArray versions = Net.json(q).getAsJsonArray();
             if (versions.isEmpty()) return;
@@ -319,8 +319,6 @@ public final class GameInstaller {
             Net.download(file.get("url").getAsString(), Config.MODS.resolve(file.get("filename").getAsString()), null);
         } catch (Exception ignored) { }
     }
-
-    /* ====================================================== launch */
 
     private void launch(String java, JsonObject vanilla, JsonObject fabric, Set<Path> cp, String assetId) throws Exception {
         String uuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + cfg.nick).getBytes(StandardCharsets.UTF_8))
@@ -345,8 +343,14 @@ public final class GameInstaller {
 
         List<String> cmd = new ArrayList<>();
         cmd.add(java);
-        cmd.add("-Xmx" + cfg.ramGb + "G");
-        cmd.add("-Xms512M");
+        int ram = cfg.ramGb;
+        if (cfg.boost) {
+            int rec = Optimizer.recommendedRamGb();
+            if (rec > 0) ram = rec;
+        }
+        cmd.add("-Xmx" + ram + "G");
+        cmd.add("-Xms" + Math.min(ram, 2) + "G");
+        if (cfg.boost) cmd.addAll(Optimizer.BOOST_JVM_FLAGS);
         cmd.addAll(args(vanilla, "jvm", vars));
         cmd.addAll(args(fabric, "jvm", vars));
         cmd.add(fabric.get("mainClass").getAsString());
@@ -360,6 +364,11 @@ public final class GameInstaller {
                 .redirectErrorStream(true)
                 .redirectOutput(ProcessBuilder.Redirect.to(log.toFile()))
                 .start();
+
+        if (cfg.highPriority) {
+            boolean ok = Optimizer.setHighPriority(p.pid());
+            report(ok ? "Приоритет Minecraft: High" : "High-приоритет не выставлен (не критично)", 0.99);
+        }
 
         Thread.sleep(4000);
         if (!p.isAlive()) {
@@ -391,7 +400,6 @@ public final class GameInstaller {
         return out;
     }
 
-    /** Правила Mojang: только Windows x64, без «features» (demo, quick play, разрешение). */
     private static boolean allowed(JsonArray rules) {
         if (rules == null) return true;
         boolean ok = false;
@@ -407,4 +415,4 @@ public final class GameInstaller {
         }
         return ok;
     }
-          }
+    }
